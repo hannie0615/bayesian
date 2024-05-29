@@ -17,23 +17,26 @@ from transformers import AutoModelForAudioClassification, Wav2Vec2FeatureExtract
 warnings.filterwarnings(action='ignore')
 # os.environ['CUDA_LAUNCH_BLOCKING'] = '0'
 
+# gpu check
 import torch
 print(f"MPS 장치를 지원하도록 build가 되었는가? {torch.backends.mps.is_built()}")
 print(f"MPS 장치가 사용 가능한가? {torch.backends.mps.is_available()}")
 device = torch.device("mps")
 
+# config setting
 CFG = {
-    'SR':16000,
-    'SEED':42,
+    'SR': 16000,
+    'SEED': 42,
     'BATCH_SIZE': 4, # out of Memory가 발생하면 줄여주기
     'TOTAL_BATCH_SIZE': 16, # 원하는 batch size
-    'EPOCHS':2,
-    'LR':1e-4,
+    'EPOCHS': 2,
+    'LR': 1e-4,
 }
 MODEL_NAME = "facebook/wav2vec2-base"
 
 
 def seed_everything(seed):
+    # seed 고정하는 용도
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
@@ -42,17 +45,20 @@ def seed_everything(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
 
-seed_everything(CFG['SEED']) # Seed 고정
+
+# seed setting
+seed_everything(CFG['SEED'])
 
 
-# 데이터셋 로드
+# dataset load
 train_df = pd.read_csv('./train.csv')
 train_df, valid_df = train_test_split(train_df, test_size=0.2, random_state=CFG['SEED'])
 
-train_df.reset_index(drop=True, inplace=True)
-valid_df.reset_index(drop=True, inplace=True)
+train_df.reset_index(drop=True, inplace=True)   # (4000, 3)
+valid_df.reset_index(drop=True, inplace=True)   # (1001, 3)
 
 def speech_file_to_array_fn(df):
+    # read wav file -> audio array
     feature = []
     for path in tqdm(df['path']):
         speech_array, _ = librosa.load(path, sr=CFG['SR'])
@@ -63,8 +69,9 @@ train_x = speech_file_to_array_fn(train_df)
 valid_x = speech_file_to_array_fn(valid_df)
 processor = Wav2Vec2FeatureExtractor.from_pretrained(MODEL_NAME)
 
-print(train_df.shape)   # (4000, 3)
-print(valid_df.shape)   # (1001, 3)
+# label : 0-5
+print(train_x.shape)
+print(valid_x.shape)
 
 
 class CustomDataSet(torch.utils.data.Dataset):
@@ -98,6 +105,7 @@ def create_data_loader(dataset, batch_size, shuffle, collate_fn, num_workers=0):
                       )
 
 test_df = pd.read_csv('./test.csv')
+
 def collate_fn_test(batch):
     x = pad_sequence([torch.tensor(xi) for xi in batch], batch_first=True)
     return x
